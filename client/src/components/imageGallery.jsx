@@ -1,12 +1,17 @@
+
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import './styles.css';
+import { useAuth } from "@clerk/clerk-react";
+import { useNavigate } from 'react-router-dom';
 
 const ImageGallery = () => {
   const [images, setImages] = useState([]);
   const [error, setError] = useState(null);
   const [query, setQuery] = useState('');
   const [selectedImage, setSelectedImage] = useState(null); // Track the selected image for modal
+  const { getToken } = useAuth(); // Clerk authentication
+  const navigate = useNavigate(); // React Router navigation
 
   useEffect(() => {
     fetchImages();
@@ -32,14 +37,15 @@ const ImageGallery = () => {
   const searchImages = async (searchQuery) => {
     try {
       const response = await axios.get(`http://localhost:8000/api/images?query=${searchQuery}`);
-            const imageList = response.data
-            // Preload larger images
-            imageList.forEach(image => {
-              const img = new Image();
-              img.src = image.largeImageURL;
-            });
-      
-            setImages(imageList);
+      const imageList = response.data;
+
+      // Preload larger images
+      imageList.forEach(image => {
+        const img = new Image();
+        img.src = image.largeImageURL;
+      });
+
+      setImages(imageList);
     } catch (error) {
       setError('Error searching images');
     }
@@ -48,10 +54,8 @@ const ImageGallery = () => {
   const handleSearch = (e) => {
     e.preventDefault();
     if (query.trim()) {
-      // If query is not empty, fetch search results
       searchImages(query);
     } else {
-      // If query is empty, fetch random images
       fetchImages();
     }
   };
@@ -66,6 +70,31 @@ const ImageGallery = () => {
     setSelectedImage(null);
   };
 
+  // Function to bookmark an image
+  const bookmarkImage = async (imageId) => {
+    try {
+      const token = await getToken(); // Get JWT from Clerk
+      await axios.post(
+        'http://localhost:8000/api/users/bookmarks',
+        { imageId },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`, // Pass token in headers
+          },
+        }
+      );
+      alert("Image bookmarked successfully!");
+    } catch (error) {
+      console.error('Error bookmarking image:', error);
+      setError('Error bookmarking image');
+    }
+  };
+
+  // Navigate to bookmarks page
+  const goToBookmarks = () => {
+    navigate('/bookmarks');
+  };
+
   return (
     <div>
       <form onSubmit={handleSearch}>
@@ -77,6 +106,10 @@ const ImageGallery = () => {
         />
         <button type="submit">Search</button>
       </form>
+
+      {/* Button to navigate to bookmark page */}
+      <button onClick={goToBookmarks}>Show Bookmarked Images</button>
+
       <div className="pinterest-grid">
         {error ? (
           <p>{error}</p>
@@ -103,6 +136,8 @@ const ImageGallery = () => {
             <div className="modal-info">
               <h2>{selectedImage.tags}</h2>
               <p>By: {selectedImage.user}</p>
+              {/* Bookmark button inside modal */}
+              <button onClick={() => bookmarkImage(selectedImage.id)}>Bookmark</button>
             </div>
           </div>
         </div>
